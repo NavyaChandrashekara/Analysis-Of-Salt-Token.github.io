@@ -1,0 +1,409 @@
+---
+title: "Project: Analysis of Salt tokens"
+author: "Nikita Vispute, Navya Hirebidanur Chandrashekara"
+date: "December 01, 2018"
+output:
+  html_document:
+    df_print: paged
+    code_folding: "hide"
+---
+
+<style>
+body {
+text-align: justify}
+</style>
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+###INTRODUCTION:
+
+#### Ethereum: 
+Ethereum is an open-source, public, blockchain-based distributed computing platform and operating system that enables developers to build and deploy decentralized applications. 
+Vitalik Buterin is a Russian-Canadian programmer who is the co-founder of Ethereum.He released a white paper in 2013 describing an alternative platform designed for any type of decentralized application developers would want to build. The system was called ethereum.
+Ethereum makes it easy to create smart contracts, self-enforcing code that developers can tap for a range of applications.In the Ethereum blockchain, instead of mining for bitcoin, miners work to earn Ether, a type of crypto token that fuels the network. Beyond a tradeable cryptocurrency, Ether is also used by application developers to pay for transaction fees and services on the Ethereum network.
+
+####Token:
+It  is some form of money, but often it can represent something else entirely - membership in a program, for instance, or proof of ownership. In crypto, tokens have many meanings.
+Bitcoin is the primary token in cryptocurrency: the oldest, most valuable, and perhaps the most used.Most tokens have a fixed or limited supply decided by the issuer. Their value is often related to said supply, but it's not always important. In the case of the base Ether token (ETH), for instance, there is fundamentally an intent to continue minting new tokens forever. Ether is required to launch and use various other tokens on the Ethereum blockchain. Hence ETH is fairly often the most valuable token on its blockchain, in coin price and market cap terms.
+
+#### ERC20 Tokens:
+ERC-20 tokens are tokens designed and used solely on the Ethereum platform. ERC-20 is the universal language that all tokens on the Ethereum network use. It allows one token to be traded with another.They follow a list of standards so that they can be shared, exchanged for other tokens, or transferred to a crypto-wallet.    
+Optional: Token Name, Symbol,Decimal (up to 18)   
+Mandatory: totalSupply, balanceOf, transfer, transferFrom, approve, allowance
+
+####Selection of dataset:
+
+UTD ID of Nikita: 2021421460   
+UTD ID of Navya: 2021430477   
+Sum of the IDs modulo 20: 18   
+18th biggest token dataset : networksaltTX
+
+####Salt Token :
+Since the Ethereum blockchain network first launched in July 2015, some 500+ cryptocurrency projects have been built on top of it as ERC20, ERC223, or ERC777 tokens.Salt(Secured Automated Lending Platform) was launched in October 2017.It is led by Shawn Owen as CEO. The platform has almost 50,000 members and has funded over $7,000,000 in Bitcoin and Ethereum backed loans. SALT is the current leader in blockchain-based loans.The SALT lending platform is a great option if you want/need to make some real-world expenses and don't want to lose the potential gains from your crypto holdings. Beyond that, the project works to solve a major problem of blockchain assets - illiquidity. By opening up an entirely new form of loans, the project brings more liquidity to the cryptocurrency market. Borrowers simply put their blockchain-based assets up as collateral in a smart contract and are quickly matched with capital from an extensive network of qualified lenders.
+
+###Description of what we are trying to model:
+In this project, we will examine the ethereum dataset: salt. We will modify this data first to remove outliers, and then find the distribution for the number of transactions by the buyer and similarly for the seller. Then we will create layers for the number of transactions based on increasing token Amount and find the correlation between each layer and the token price dataset. Lastly we will create a multiple linear regression model using one single layer with highest correlation.
+
+####Loading the dataset:
+Once the dataset is loaded into RStudio, we re-named columns of the dataset to:fromNodeID, toNodeID, unixTime, tokenAmount.
+```{r}
+#loading the dataset: networksaltTX
+salt<-read.table(file="networksaltTX.txt")
+
+#adding columnnames to the columns in the data
+colnames(salt)<-c("fromNodeID","toNodeID", "unixTime","tokenAmount")
+
+#displaying dataset
+#salt
+```
+
+#### Outliers in the Dataset :
+Outliers in an Ethereum dataset are all those transactions whose tokenamount > TotalSupply*Decimal of those respective tokens. Based on the mentioned criteria, our dataset had more than 30 outliers and we decided to eliminate all those outlier transactions.
+Total Supply : 120,000,000 (Source:https://coinmarketcap.com/)  
+SALT & Decimal : 8 (Source:https://etherscan.io/token/0x4156D3342D5c385a87D264F90653733592000581)
+Calculating for the outliers whose tokenAmount > 120000000*10^8
+```{r}
+OutlierTable<-salt[ which(salt$tokenAmount > 12000000000000000), ]
+message("Number of outliers in the SALT data set is : ", nrow(OutlierTable))
+OutlierTable
+Users<-nrow(data.frame(from_to=union(OutlierTable$fromNodeID, OutlierTable$toNodeID)))
+message("Number of users included in these transcations are : ",Users)
+```
+
+#### Filtering Outliers:
+We filter the dataset by removing the outliers found in the earlier step.
+```{r}
+data<-salt[ which(salt$tokenAmount <= 12000000000000000), ]
+#data
+```
+
+####Distribution for Number of times a user sells:
+To find number of times a user sells, initially we considered the actual dataset without outliers and found the frequency of each user (UserIDs are present in the fromNodeID column) in the table and stored the result in "data1"" table.The next step was to find the number of times each value in frequency column of data1 table is repeated. The displayed resultant table was stored in "data2".
+```{r}
+#(1)Distribution for how many times user sells (fromNodeID)
+
+#Finding frequency of transactions for each seller in the dataset
+data1<-data.frame(table(data$fromNodeID))
+
+#renaming the column name in the table
+colnames(data1)[colnames(data1)=="Var1"] <- "Seller (fromNodeID)"
+
+#displaying the data1
+#data1
+
+#Finding the number of times the frequency in data1 table has repeated
+data2<-data.frame(table(data1$Freq))
+
+#renaming the column name in the table
+colnames(data2)[colnames(data2)=="Var1"] <- "Count_freq_seller"
+
+#displaying data2
+data2
+```
+A graph was plotted based on the data in the data2 table using the ggplot function.For this function we installed the ggplot2 library. Also a summary statistics for the data2 table is drawn wherein values for parameters like mean , median, maximum , minimum etc are found.
+```{r}
+#Showing the distribution using ggplot
+library(ggplot2)
+ggplot(data=data2, aes(x=Count_freq_seller, y=Freq,group=1)) + geom_line()+coord_cartesian(xlim=c(0,50),ylim=c(0,252))+ggtitle("Seller Token Frequency")+xlab("Num_TransacofTokens")+ylab("Frequency")
+
+#Finding the estimation paramters for the exponential distribution (mean, median etc)
+summary(data2)
+```
+Based on the graph, we noticed the discrete distribution in which the data fits properly is exponential distribution.This means that lower frequency values are repeated more often and then it goes on decreasing exponentially.That is higher number of transaction of tokens are done by fewer sellers and transactions between 1 to 15 are done by more number of sellers in this dataset.
+
+####Distribution for Number of times user buys:
+To find number of times a user buys, initially we considered the actual dataset without outliers and found the frequency of each user (UserIDs are present in the toNodeID column) in the table and stored the result in "data3"" table.The next step was to find the number of times each value in frequency column of data1 table is repeated. The displayed resultant table was stored in "data4".
+The distribution is drawn on table data4 and summary statistics for the data4 is also displayed.
+```{r}
+#(2)Distribution for how many times user buys (toNodeID)
+
+#Finding frequency of transactions for each buyer in the dataset
+data3<-data.frame(table(data$toNodeID))
+
+#renaming the column name in the table
+colnames(data3)[colnames(data3)=="Var1"] <- "Buyer (ToNodeID)"
+
+#displaying data3
+#data3
+
+#Finding the number of times the frequency in data3 table has repeated
+data4<-data.frame(table(data3$Freq))
+
+#renaming the column name in the table
+colnames(data4)[colnames(data4)=="Var1"] <- "Count_freq_buyer"
+
+#displaying data4
+data4
+```
+```{r}
+#Showing the distribution using ggplot
+library(ggplot2)
+ggplot(data=data4, aes(x=Count_freq_buyer, y=Freq,group=1)) + geom_line()+coord_cartesian(xlim=c(0,50),ylim=c(0,252))+ggtitle("Buyer Token Frequency")+xlab("Num_TransacofTokens")+ylab("Frequency")
+
+#Finding the estimation paramters for the exponential distribution (mean, median etc)
+summary(data4)
+```
+Based on plot, the discrete distribution in which the data fits properly is exponential distribution.This means that lower frequency values are repeated more often and then it goes on decreasing exponentially.That is higher number of transaction of tokens are done by fewer buyers and transactions between 1 to 15 are done by more number of buyers in this dataset.
+
+#### Creating layers for number of transactions based on Token Amount and finding their correlation with the token price:
+In this section we are first converting the UnixTime column in the remaining filtered data values to Year/Month/Date format.Next we are reading the new dataset of token prices of salt to find correlation between the two datasets.We then convert the date in the new prices table to the same format as earlier data set and then create a subset of the prices table consisting of only date and closing values columns.We are considering closing price for the analysis. Then we joined the two datasets prices and data to get the common rows ordered by Date.
+```{r}
+#converting the Unix time into date format in the dataset
+data$unixTime <- as.Date(as.POSIXct(as.numeric(data$unixTime), origin = '1970-01-01', tz="GMT"))
+
+#displaying the date format in data
+#data
+
+#Reading the new dataset of token prices of salt
+prices<-read.table(file="salt_new.txt")
+
+#renaming the columns for the dataset prices
+colnames(prices)<-c("Date","Open", "High","Low","Close","Volume","Market cap")
+prices$Date <- strptime(as.character(prices$Date), "%m/%d/%Y")
+prices$Date<-as.Date(format(prices$Date, "%Y-%m-%d"))
+
+#displaying the new dataset prices
+prices
+
+#creating a new table that is a subset of prices table and contains only Date and Close columns
+newprices<-subset(prices, select=c("Date", "Close"))
+
+#Display newprices
+#newprices
+
+#Intersecting the common rows in the two datasets: prices and data by Date
+common <- intersect(prices$Date, data$unixTime)  
+# give you common rows in data frame 1
+com_Table<-data[common,] 
+#display the common table
+#com_Table
+```
+
+```{r}
+library("sqldf")
+```
+To run the query using SQL in R , we installed and imported the sqldf library package.
+####Layer 1
+In layer 1, we consider the token Amount values between 1000 to 1.0 x 10^8. Thus all transactions that are between these values will be grouped together in layer 1.Next correlation is found between the number of transactions and Closing value ordered against time which satisfy the tokenAmount condition.
+```{r}
+#creating the first layer by SQL where number of transactions are selected based on threshold layer 1 value
+Time_count<-sqldf("SELECT unixTime, COUNT(tokenAmount) as TotalTrans
+FROM data
+WHERE tokenAmount>1.0e+3 AND tokenAmount<=1.0e+8 
+GROUP BY unixTime")
+
+#renaming the columns in the newtable
+colnames(Time_count)[colnames(Time_count)=="unixTime"] <- "Date"
+#Time_count
+#newprices
+
+#Merging the new table Time_count with the newprices table by Date
+Result<-merge(Time_count,newprices,by="Date")
+#Result
+
+#Finding the correlation between the closing value and the total number of transactions by layer 1 threshold
+Pcorr<-cor(Result$Total, Result$Close, use="all.obs", method="pearson")
+message("Pearson correlation for layer 1 and price data is : ",Pcorr)
+```
+
+####Layer 2
+In layer 2, we consider the token Amount values between 1.0 x 10^8 to 1.0 x 10^9. All transactions between these values will be grouped together in layer 2. Next correlation is found between the number of transactions and Closing value ordered against time which satisfy the tokenAmount condition.
+```{r}
+#creating the first layer by SQL where number of transactions are selected based on threshold layer 2 value
+Time_count<-sqldf("SELECT unixTime, COUNT(tokenAmount) as TotalTrans
+FROM data
+WHERE tokenAmount>1.0e+8 AND tokenAmount<=1.0e+9
+GROUP BY unixTime")
+
+#renaming the columns in the newtable
+colnames(Time_count)[colnames(Time_count)=="unixTime"] <- "Date"
+#Time_count
+#newprices
+
+#Merging the new table Time_count with the newprices table by Date
+Result<-merge(Time_count,newprices,by="Date")
+#Result
+
+#Finding the correlation between the closing value and the total number of transactions by layer 2 threshold
+Pcorr<-cor(Result$Total, Result$Close, use="all.obs", method="pearson")
+message("Pearson correlation for layer 2 and price data is : ",Pcorr)
+```
+
+####Layer 3
+In layer 3, we consider the token Amount values between 1.0 x 10^9 to 1.0 x 10^10.All transactions between these values will be grouped together in layer 3.Next correlation is found between the number of transactions and Closing value ordered against time which satisfy the tokenAmount condition.
+```{r}
+#creating the first layer by SQL where number of transactions are selected based on threshold layer 3 value
+Time_count<-sqldf("SELECT unixTime, COUNT(tokenAmount) as TotalTrans
+FROM data
+WHERE tokenAmount>1.0e+9 AND tokenAmount<=1.0e+10
+GROUP BY unixTime")
+
+#renaming the columns in the newtable
+colnames(Time_count)[colnames(Time_count)=="unixTime"] <- "Date"
+#Time_count
+#newprices
+
+#Merging the new table Time_count with the newprices table by Date
+Result<-merge(Time_count,newprices,by="Date")
+#Result
+
+#Finding the correlation between the closing value and the total number of transactions by layer 3 threshold
+Pcorr<-cor(Result$Total, Result$Close, use="all.obs", method="pearson")
+message(" Pearson correlation for layer 3 and price data is: ",Pcorr)
+```
+
+####Layer 4
+In layer 4, we consider the token Amount values between 1.0 x 10^10 to 1.0 x 10^12. All transactions between these values will be grouped together in layer 4. Next correlation is found between the number of transactions and Closing value ordered against time which satisfy the tokenAmount condition.
+```{r}
+
+#creating the first layer by SQL where number of transactions are selected based on threshold layer 4 value
+Time_count<-sqldf("SELECT unixTime, COUNT(tokenAmount) as TotalTrans
+FROM data
+WHERE tokenAmount>1.0e+10 AND tokenAmount<=1.0e+12
+GROUP BY unixTime")
+
+#renaming the columns in the newtable
+colnames(Time_count)[colnames(Time_count)=="unixTime"] <- "Date"
+#Time_count
+#newprices
+
+#Merging the new table Time_count with the newprices table by Date
+Result<-merge(Time_count,newprices,by="Date")
+#Result
+
+#Finding the correlation between the closing value and the total number of transactions by layer 4 threshold
+Pcorr<-cor(Result$Total, Result$Close, use="all.obs", method="pearson")
+message("Pearson correlation for layer 4 and price data is: ",Pcorr)
+```
+
+####Layer 5
+In layer 5, we consider the token Amount values greater than 1.0 x 10^12. All transactions greater than this value will be grouped together in layer 5. Next correlation is found between the number of transactions and Closing value ordered against time which satisfy the tokenAmount condition.
+```{r}
+
+#creating the first layer by SQL where number of transactions are selected based on threshold layer 5 value
+Time_count<-sqldf("SELECT unixTime, COUNT(tokenAmount) as TotalTrans
+FROM data
+WHERE tokenAmount>1.0e+12
+GROUP BY unixTime")
+
+#renaming the columns in the newtable
+colnames(Time_count)[colnames(Time_count)=="unixTime"] <- "Date"
+#Time_count
+#newprices
+
+#Merging the new table Time_count with the newprices table by Date
+Result<-merge(Time_count,newprices,by="Date")
+#Result
+
+#Finding the correlation between the closing value and the total number of transactions by layer 5 threshold
+Pcorr<-cor(Result$Total, Result$Close, use="all.obs", method="pearson")
+message("Pearson correlation for layer 5 and price data is: ",Pcorr)
+```
+
+Thus observe from the correlation coefficients at each layer that correlation is best at layer 3 with correlation at 0.76.Layer 1,2,4 also show averagely good correlation at 0.65 and more.Thus if we observe we can see that total number of transactions in layer 1,2,3,4 are more when closing value of the token price is more and the number of transactions are less when the closing value is less. Since there are very less transactions per date in layer 5 , the correlation with the price data is very low.
+
+#### Extracting 3 features from the dataset and drawing up a multiple linear regression model.
+We have chosen total no of transactions, high token price value and low token price value as the three regressors.On the Y-axis we have considered the close value of the token price.We first merged the data from the salt dataset for a single layer with highest correlation along with the token prices data based on the "Date" column. Then we drew the regression model and displayed the coefficients and the residuals.
+```{r}
+#filtering the data and using a single layer which had the highest correlation = 0.76
+filtered_data<-sqldf("SELECT unixTime, COUNT(tokenAmount) as TotalTrans
+FROM data
+WHERE tokenAmount>1.0e+9 AND tokenAmount<=1.0e+10
+GROUP BY unixTime")
+
+#renaming the column from unixTime to Date for the merge operation with the price data
+colnames(filtered_data)[colnames(filtered_data)=="unixTime"] <- "Date"
+#filtered_data
+
+#Merging the two datasets
+price_filtereddata<-merge(filtered_data,prices,by="Date")
+#price_filtereddata
+
+# We have created our multiple linear regression model to predict price return based on the previous day data. The fatures which we have chosen to create the regression model are :
+# 1.Market Cap
+# 2.Closing Value
+# 3.Price difference between high and low
+
+price_return <- c()
+previous_high <- c()
+previous_low <- c()
+previous_num_trans <- c()
+previous_marketcap <- c()
+previous_close <- c()
+price_return[1] <- price_filtereddata[1,'Close']
+previous_high[1] <- price_filtereddata[1,'High']
+previous_low[1] <- price_filtereddata[1,'Low']
+previous_num_trans[1] <- price_filtereddata[1,'TotalTrans']
+previous_marketcap[1] <- price_filtereddata[1,'Market cap']
+previous_close[1]<- price_filtereddata[1,'Close']
+for(row in 2:nrow(price_filtereddata)){
+  previous_price <- price_filtereddata[row-1,'Close']
+  current_price <- price_filtereddata[row,'Close']
+  price_return_old <- ((current_price - previous_price)/previous_price)
+  price_return <- append(price_return,price_return_old)
+  previous_high <- append(previous_high,price_filtereddata[row-1,'High'])
+  previous_low <- append(previous_low,price_filtereddata[row-1,'Low'])
+  previous_num_trans <- append(previous_num_trans,price_filtereddata[row-1,'TotalTrans'])
+  previous_marketcap <- append(previous_marketcap,price_filtereddata[row-1,'Market cap'])
+  previous_close <- append(previous_close,price_filtereddata[row-1,'Close'])
+}
+
+price_withreturn <- cbind(price_filtereddata,price_return,previous_high,previous_low,previous_num_trans,previous_marketcap,previous_close)
+price_withreturn$Prev_price_diff <- price_withreturn$previous_high-price_withreturn$previous_low
+table_regression<-subset(price_withreturn, select=c("Prev_price_diff","previous_close","previous_marketcap","price_return"))
+table_regression
+
+#Creating a multiple linear regression model using the parameters stated
+fit <- lm(price_return ~ Prev_price_diff+previous_close+previous_marketcap, data=table_regression)
+
+#print(fit)
+summary(fit)
+
+table_regression$predicted <- predict(fit)
+table_regression$residuals <- residuals(fit)
+library(magrittr)
+
+table_regression %>% 
+  tidyr::gather(key = "iv", value = "x", -price_return, -predicted, -residuals) %>%  # Get data into shape
+  ggplot(aes(x = x, y = price_return)) +  # Note use of `x` here and next line
+  geom_segment(aes(xend = x, yend = predicted), alpha = .2) +
+  geom_point(aes(color = residuals)) +
+  scale_color_gradient2(low = "blue", mid = "white", high = "red") +
+  guides(color = FALSE) +
+  geom_point(aes(y = predicted), shape = 1) +
+  facet_grid(~ iv, scales = "free") +  # Split panels here by `iv`
+  theme_bw()
+```
+
+In the above plot, black points are the actual values and White points are predicted values.With this in mind, we can see, as expected, that there is less variability in the predicted values than the actual values.
+
+Printing the coefficients : B0, B1, B2, B3
+```{r}
+B0<- coef(fit)[1]
+B1<-coef(fit)[2]
+B2<-coef(fit)[3]
+B3<-coef(fit)[4]
+message("B0 (y intercept price-return) is: ",B0)
+message("B1 (Prev_price_diff) is: ",B1)
+message("B2 (previous_close) is: ",B2)
+message("B3 (previous_marketcap) is: ",B3)
+```
+
+###Conclusion on the project performed:
+Based on the dataset analysis, we found that number of transactions of sellers and buyers is exponentially distributed.  
+The correlation coefficient is higher in layer3 (1.0 x 10^9 < TokenAmount <= 1.0 x 10^10) ie 0.76, which means the number of transactions in this layer is highly correlated with the price when compared to the other layers.Since there are very less transactions per date in layer 5 (TokenAmount >1.0 x 10^12), the correlation with the price data is very low.  
+Regression Model:
+Our Regression model equation is Y=0.04+0.21(x1)-0.06(x2)+0.001(x3)  
+Residual standard error: 0.2754, is the deviation of observed value from the actual value.Ideal prediction model should have a RSE of zero.  
+We are using R squared value to explain the adequacy of our regression model.This value describes the proportion of variation in the response data that is explained by the regression model. When all the points in a data set lie on the regression model, the largest possible value of r2= 1 is obtained, while a minimum possible value of r2=0 is obtained when there is only one data point or if the straight line regression model is a constant line.  
+We have obtained a R squared value of 0.22
+
+###References:
+1. https://blockgeeks.com/guides/what-is-ethereum/   
+2. https://www.investopedia.com/articles/investing/022516/what-ethereum.asp  
+3. https://cryptobriefing.com/what-is-a-token-in-cryptocurrency/  
+4. https://cointelegraph.com/explained/erc-20-tokens-explained  
+5. https://www.investinblockchain.com/top-ethereum-tokens/   
+6. https://saltlending.com/   
+7. https://coincentral.com/salt-lending-beginner-guide/ 
