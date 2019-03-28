@@ -1,1 +1,1 @@
-# Analysis-Of-Salt-Token.github.io
+Build a Regression Model to predict price of Tokens for the Next day using R
